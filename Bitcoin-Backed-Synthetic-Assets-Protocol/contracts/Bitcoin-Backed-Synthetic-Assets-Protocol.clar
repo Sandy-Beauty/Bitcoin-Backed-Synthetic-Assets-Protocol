@@ -452,3 +452,51 @@
     is-active: bool
   }
 )
+
+(define-data-var pair-counter uint u0)
+
+;; Create a new trading pair
+(define-public (create-trading-pair (asset-a-id uint) (asset-b-id uint) (fee uint))
+  (begin
+    (asserts! (is-eq tx-sender (var-get governance-address)) ERR-NOT-AUTHORIZED)
+    (asserts! (is-asset-supported asset-a-id) ERR-ASSET-NOT-SUPPORTED)
+    (asserts! (is-asset-supported asset-b-id) ERR-ASSET-NOT-SUPPORTED)
+    (asserts! (not (is-eq asset-a-id asset-b-id)) ERR-INVALID-AMOUNT)
+    (asserts! (<= fee u1000) ERR-INVALID-AMOUNT) ;; Max fee of 10%
+    
+    (let 
+      (
+        (pair-id (var-get pair-counter))
+      )
+      ;; Create the pair
+      (map-set trading-pairs
+        { pair-id: pair-id }
+        {
+          asset-a-id: asset-a-id,
+          asset-b-id: asset-b-id,
+          reserve-a: u0,
+          reserve-b: u0,
+          fee: fee,
+          is-active: true
+        }
+      )
+      
+      ;; Increment pair counter
+      (var-set pair-counter (+ pair-id u1))
+      
+      (ok pair-id)
+    )
+  )
+)
+
+;; Calculate price based on constant product formula (x * y = k)
+(define-private (calculate-output-amount (input-amount uint) (input-reserve uint) (output-reserve uint) (fee uint))
+  (let
+    (
+      (input-with-fee (* input-amount (- u10000 fee)))
+      (numerator (* input-with-fee output-reserve))
+      (denominator (+ (* input-reserve u10000) input-with-fee))
+    )
+    (/ numerator denominator)
+  )
+)
